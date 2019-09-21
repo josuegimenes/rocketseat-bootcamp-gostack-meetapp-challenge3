@@ -1,20 +1,20 @@
-import Notification from '../schemas/Notification';
 import Meetup from '../models/Meetup';
+import Notification from '../schemas/Notification';
 
 class NotificationController {
   async index(req, res) {
-    const checkIsProvider = await Meetup.findOne({
+    const checkIsOrganizer = await Meetup.findOne({
       where: { user_id: req.userId },
     });
 
-    if (!checkIsProvider) {
+    if (!checkIsOrganizer) {
       return res
         .status(400)
-        .json({ error: 'Only provider can load notifications.' });
+        .json({ error: 'Only organizer can load notifications.' });
     }
 
     const notifications = await Notification.find({
-      user_id: req.userId,
+      user: req.userId,
     })
       .sort({ createdAt: 'desc' })
       .limit(20);

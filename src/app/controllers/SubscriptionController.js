@@ -1,10 +1,13 @@
 import { Op } from 'sequelize';
-import { startOfHour, parseISO, format } from 'date-fns';
+import { format } from 'date-fns';
 import pt from 'date-fns/locale/pt';
 import User from '../models/User';
 import Meetup from '../models/Meetup';
 import Subscription from '../models/Subscription';
 import Notification from '../schemas/Notification';
+
+import SubscriptionMail from '../jobs/SubscriptionMail';
+import Queue from '../../lib/Queue';
 
 class SubscriptionController {
   async index(req, res) {
@@ -33,6 +36,10 @@ class SubscriptionController {
     const meetup = await Meetup.findByPk(req.params.meetupId, {
       include: [User],
     });
+
+    // console.log('print');
+    console.log(await Meetup.findByPk(req.params.meetupId));
+    // console.log(meetup);
 
     /**
      * Does not allow you to subscribe to the meetup itself.
@@ -88,10 +95,9 @@ class SubscriptionController {
       meetup_id: meetup.id,
     });
 
-    const hourStart = startOfHour(parseISO(meetup.date));
     const formattedDate = format(
-      hourStart,
-      "'dia' dd 'de' MMMM', às' H:mm'h'",
+      meetup.date,
+      "'dia' dd 'de' MMMM 'de' yyyy', às' H:mm'h'",
       { locale: pt }
     );
 
@@ -102,6 +108,18 @@ class SubscriptionController {
     await Notification.create({
       content: `O usuário ${user.name} acabou de se inscrever em ${meetup.title} para o ${formattedDate}`,
       user: meetup.user_id,
+    });
+
+    const countSubs = await Subscription.count({
+      where: {
+        meetup_id: meetup.id,
+      },
+    });
+
+    await Queue.add(SubscriptionMail.key, {
+      meetup,
+      user,
+      countSubs,
     });
 
     return res.json(subscription);
